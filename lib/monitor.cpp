@@ -8,6 +8,11 @@ Monitor::Monitor(udev_device *device)
 {
 }
 
+Monitor::Monitor(const QString &outputName)
+    : Device(outputName, MONITOR)
+{
+}
+
 Monitor::~Monitor()
 {
 }

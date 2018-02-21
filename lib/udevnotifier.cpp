@@ -8,7 +8,6 @@
 #include"webcam.h"
 #include <QtCore/QDebug>
 
-
 namespace UdevNotifier {
 
 UdevNotifier::UdevNotifier(const QStringList &groups, QObject *parent)
@@ -36,10 +35,21 @@ UdevNotifier::UdevNotifier(const QStringList &groups, QObject *parent)
     } else {
         qDebug("FAILED UDEv MONITOR");
     }
+
+    d->display = XOpenDisplay(NULL);
+    d->window = RootWindow(d->display, DefaultScreen(d->display));
+    d->screenRes = XRRGetScreenResources(d->display, d->window);
+
+    int errorBaseIgnored = 0;
+    XRRQueryExtension(d->display, &d->xrandrEventBase, &errorBaseIgnored);
+
+    XRRSelectInput(d->display, DefaultRootWindow(d->display), RROutputChangeNotifyMask);
 }
 
 UdevNotifier::~UdevNotifier()
 {
+    XRRFreeScreenResources(d->screenRes);
+    XCloseDisplay(d->display);
     delete d;
 }
 
@@ -63,41 +73,47 @@ void UdevNotifier::scan()
 {
     struct udev *udev = d->udev;
     struct udev_enumerate *enumerate = udev_enumerate_new(udev);
-    udev_enumerate_add_match_subsystem(enumerate, "drm");
-    udev_enumerate_add_match_sysname(enumerate, "card[0-9]-*");
+
+    // XXX --- old udev display detection code
+    // udev_enumerate_add_match_subsystem(enumerate, "drm");
+    // udev_enumerate_add_match_sysname(enumerate, "card[0-9]-*");
+    // udev_enumerate_scan_devices(enumerate);
+
+    // struct udev_list_entry *devices = udev_enumerate_get_list_entry(enumerate);
+    // struct udev_list_entry *dev_list_entry;
+    // struct udev_device *dev;
+
+    // udev_list_entry_foreach(dev_list_entry, devices) {
+    //     const char *path;
+
+    //     path = udev_list_entry_get_name(dev_list_entry);
+    //     dev = udev_device_new_from_syspath(udev, path);
+
+    //     if (!dev) {
+    //         continue;
+    //     }
+
+    //     qDebug("[UdevNotifier::scan] Found display: %s", udev_device_get_sysname(dev));
+    //     qDebug("[UdevNotifier::scan] enabled? %s", udev_device_get_sysattr_value(dev, "enabled"));
+
+    //     if (QString(udev_device_get_sysattr_value(dev, "enabled")) == QLatin1String("enabled")) {
+    //         Q_EMIT udevEvent(ADD, new Monitor(dev));
+    //     }
+
+    //     udev_device_unref(dev);
+    // }
+
+    // udev_enumerate_unref(enumerate);
+
+    // enumerate = udev_enumerate_new(udev);
+    // XXX --- old udev display detection code
+
+    udev_enumerate_add_match_subsystem(enumerate, "video4linux");
     udev_enumerate_scan_devices(enumerate);
 
     struct udev_list_entry *devices = udev_enumerate_get_list_entry(enumerate);
     struct udev_list_entry *dev_list_entry;
     struct udev_device *dev;
-
-    udev_list_entry_foreach(dev_list_entry, devices) {
-        const char *path;
-
-        path = udev_list_entry_get_name(dev_list_entry);
-        dev = udev_device_new_from_syspath(udev, path);
-
-        if (!dev) {
-            continue;
-        }
-
-        qDebug("[UdevNotifier::scan] Found display: %s", udev_device_get_sysname(dev));
-        qDebug("[UdevNotifier::scan] enabled? %s", udev_device_get_sysattr_value(dev, "enabled"));
-
-        if (QString(udev_device_get_sysattr_value(dev, "enabled")) == QLatin1String("enabled")) {
-            Q_EMIT udevEvent(ADD, new Monitor(dev));
-        }
-
-        udev_device_unref(dev);
-    }
-
-    udev_enumerate_unref(enumerate);
-
-    enumerate = udev_enumerate_new(udev);
-    udev_enumerate_add_match_subsystem(enumerate, "video4linux");
-    udev_enumerate_scan_devices(enumerate);
-
-    devices = udev_enumerate_get_list_entry(enumerate);
 
     udev_list_entry_foreach(dev_list_entry, devices) {
         const char *path;
@@ -115,6 +131,18 @@ void UdevNotifier::scan()
         Q_EMIT udevEvent(ADD, new Webcam(dev));
 
         udev_device_unref(dev);
+    }
+
+    for (int i = 0; i < d->screenRes->noutput; ++i) {
+        XRROutputInfo *outputInfo = XRRGetOutputInfo(d->display, d->screenRes, d->screenRes->outputs[i]);
+
+        qDebug() << "[UdevNotifier::scan] found output: " << outputInfo->name;
+        if (outputInfo->connection == 0) {
+            qDebug() << "[UdevNotifier::scan] output connected, sending signal...";
+            Q_EMIT udevEvent(ADD, new Monitor(outputInfo->name));
+        }
+
+        XRRFreeOutputInfo(outputInfo);
     }
 
     udev_enumerate_unref(enumerate);
@@ -147,9 +175,9 @@ void UdevNotifier::run()
 
             //qDebug() << "hotplug[" << udev_device_get_action(dev) << "] " << udev_device_get_devnode(dev) << "," << udev_device_get_subsystem(dev) << "," << udev_device_get_devtype(dev);
             // emit the found device
-            if (udev_device_get_devtype(dev) == QLatin1String("drm_minor")) {
-                Q_EMIT udevEvent(actionFromString(udev_device_get_action(dev)), new Monitor(dev));
-            }
+            // if (udev_device_get_devtype(dev) == QLatin1String("drm_minor")) {
+            //     Q_EMIT udevEvent(actionFromString(udev_device_get_action(dev)), new Monitor(dev));
+            // }
 
             if (udev_device_get_subsystem(dev) == QLatin1String("video4linux")) {
                 Q_EMIT udevEvent(actionFromString(udev_device_get_action(dev)), new Webcam(dev));
@@ -159,6 +187,29 @@ void UdevNotifier::run()
 
             // clear the revents
             items[0].revents = 0;
+        }
+
+        while (XPending(d->display)) {
+            XEvent e;
+            XNextEvent(d->display, &e);
+
+            if (e.type - d->xrandrEventBase == RRNotify) {
+                qDebug() << "[UdevNotifier] output change event";
+
+                XRROutputChangeNotifyEvent *ev = (XRROutputChangeNotifyEvent*)&e;
+                XRROutputInfo *outputInfo = XRRGetOutputInfo(d->display, d->screenRes, ev->output);
+                if (outputInfo) {
+                    qDebug() << "[UdevNotifier] output:" << outputInfo->name;
+                    qDebug() << "[UdevNotifier] output status:" << (outputInfo->connection == 0 ? "connected"
+                                                                                                : outputInfo->connection == 1 ? "disconnected"
+                                                                                                                              : "unknown");
+
+                    UdevNotifier::Action action = outputInfo->connection == 0 ? ADD : REMOVE;
+                    Q_EMIT udevEvent(action, new Monitor(outputInfo->name));
+
+                    XRRFreeOutputInfo(outputInfo);
+                }
+            }
         }
     }
 

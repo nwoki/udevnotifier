@@ -11,6 +11,7 @@ class UDEVNOTIFIERSHARED_EXPORT Monitor: public Device
 {
 public:
     Monitor(udev_device *device = nullptr);
+    Monitor(const QString &outputName);
     ~Monitor();
 };
 

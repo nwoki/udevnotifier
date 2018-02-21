@@ -31,7 +31,7 @@ HEADERS += \
     udevnotifier_p.h \
     webcam.h
 
-LIBS += -ludev
+LIBS += -ludev -lX11 -lXrandr
 
 OTHER_FILES += \
     ../include/UdevNotifier/Device \

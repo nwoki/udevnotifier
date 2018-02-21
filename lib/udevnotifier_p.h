@@ -6,6 +6,9 @@
 
 #include <libudev.h>
 
+#include <qtextstream.h> // must be include before headers that define a Status type
+#include <X11/Xlib.h>
+#include <X11/extensions/Xrandr.h>
 
 namespace UdevNotifier {
 
@@ -41,6 +44,10 @@ public:
 
     struct udev *udev;
     struct udev_monitor *udevMonitor;
+    Display *display;
+    Window window;
+    XRRScreenResources* screenRes;
+    int xrandrEventBase;
 };
 
 }
