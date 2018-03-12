@@ -48,6 +48,14 @@ Device::Device(const UdevNotifier::Device &other)
     m_deviceType = other.deviceType();
 }
 
+
+Device::Device(const QString &deviceName, DeviceType deviceType)
+    : d(new DevicePrivate)
+    , m_deviceType(deviceType)
+{
+    d->name = deviceName;
+}
+
 Device::~Device()
 {
     delete d;

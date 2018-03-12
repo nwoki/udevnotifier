@@ -30,6 +30,7 @@ public:
 
     Device(udev_device *device = nullptr, DeviceType deviceType = USBDEVICE);
     Device(const Device &other);
+    Device(const QString &deviceName, DeviceType deviceType = USBDEVICE);
     ~Device();
 
     QString node() const;
