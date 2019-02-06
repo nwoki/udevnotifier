@@ -1,5 +1,5 @@
-#ifndef UDEVNOTIFIER__DEVICE_H
-#define UDEVNOTIFIER__DEVICE_H
+#ifndef UDEVNOTIFIER_DEVICE_H
+#define UDEVNOTIFIER_DEVICE_H
 
 #include "udevnotifier_global.h"
 #include <QtCore/QMetaType>
@@ -48,4 +48,4 @@ private:
 
 Q_DECLARE_METATYPE(UdevNotifier::Device)
 
-#endif  // UDEVNOTIFIER__DEVICE_H
+#endif  // UDEVNOTIFIER_DEVICE_H
