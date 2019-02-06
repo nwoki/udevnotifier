@@ -130,7 +130,8 @@ void UdevNotifier::scan()
 
         Q_EMIT udevEvent(ADD, new Webcam(dev));
 
-        udev_device_unref(dev);
+        // removed the unref of the 'udev_device' struct as the Webcam object handles it's deletion
+//        udev_device_unref(dev);
     }
 
     for (int i = 0; i < d->screenRes->noutput; ++i) {
