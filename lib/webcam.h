@@ -9,8 +9,6 @@
 #include <QtCore/QString>
 
 
-class udev_device;
-
 namespace UdevNotifier {
 
 class UDEVNOTIFIERSHARED_EXPORT Webcam: public Device
